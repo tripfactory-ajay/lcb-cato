@@ -48,7 +48,7 @@
 
         .summary-cards {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
             margin-bottom: 30px;
         }
@@ -58,13 +58,23 @@
             border-radius: 12px;
             padding: 20px;
             border: 1px solid rgba(255,255,255,0.1);
-            transition: transform 0.3s, box-shadow 0.3s;
-            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
         }
 
         .card:hover {
             transform: translateY(-3px);
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .card.updating {
+            animation: pulse 0.5s ease;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
         }
 
         .card-header {
@@ -92,18 +102,37 @@
         .icon-yellow { background: rgba(234, 179, 8, 0.2); color: #facc15; }
 
         .card-title {
-            font-size: 0.8em;
+            font-size: 0.75em;
             color: #888;
             text-transform: uppercase;
             letter-spacing: 1px;
         }
 
         .card-value {
-            font-size: 1.4em;
+            font-size: 1.3em;
             font-weight: 700;
             margin-top: 3px;
             font-family: 'Courier New', monospace;
+            transition: all 0.3s;
         }
+
+        .card-subtitle {
+            font-size: 0.75em;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .trend {
+            font-size: 0.8em;
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .trend-down { color: #4ade80; }
+        .trend-up { color: #f87171; }
+        .trend-neutral { color: #888; }
 
         .progress-card {
             background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(168, 85, 247, 0.1));
@@ -123,7 +152,7 @@
             height: 100%;
             background: linear-gradient(90deg, #3b82f6, #8b5cf6);
             border-radius: 4px;
-            transition: width 0.3s ease;
+            transition: width 0.5s ease;
         }
 
         .section {
@@ -646,73 +675,84 @@
         <header>
             <h1>🔍 Supplier Reconciliation</h1>
             <p class="subtitle">CAT001 (LCB Vehicles Limited) • Period: Nov 2022 - Feb 2026</p>
-            <p style="margin-top: 10px; color: #666; font-size: 0.9em;">Reconciling Cato Records (£39,054.86) to LCB Statement (£26,039.53)</p>
-            <p style="margin-top: 5px; color: #f87171; font-size: 0.85em;">Difference to Reconcile: £13,015.33</p>
+            <p style="margin-top: 10px; color: #666; font-size: 0.9em;">Reconciling Cato Records to LCB Statement</p>
         </header>
 
-        <!-- CORRECTED SUMMARY CARDS -->
+        <!-- DYNAMIC CALCULATOR - UPDATES AS YOU RECONCILE -->
         <div class="summary-cards" id="summaryCards">
-            <div class="card">
+            <!-- LCB Fixed Balance (Never Changes) -->
+            <div class="card" id="card-lcb">
                 <div class="card-header">
-                    <div class="card-icon icon-blue">📋</div>
+                    <div class="card-icon icon-blue">📥</div>
                     <div>
-                        <div class="card-title">LCB Closing Balance</div>
-                        <div class="card-value" style="color: #60a5fa;">£26,039.53</div>
+                        <div class="card-title">LCB Statement (Fixed)</div>
+                        <div class="card-value" style="color: #60a5fa;" id="lcbBalance">£26,039.53</div>
                     </div>
                 </div>
-                <div style="font-size: 0.75em; color: #888; margin-top: 5px;">Fixed Baseline (Correct)</div>
+                <div class="card-subtitle">Baseline - Never changes</div>
+                <div class="trend trend-neutral">← Target balance</div>
             </div>
 
-            <div class="card">
+            <!-- Cato Remaining (Decreases as matched) -->
+            <div class="card" id="card-cato">
                 <div class="card-header">
-                    <div class="card-icon icon-green">📊</div>
+                    <div class="card-icon icon-green">📤</div>
                     <div>
-                        <div class="card-title">Cato Records Balance</div>
-                        <div class="card-value" id="catoBalance" style="color: #4ade80;">£39,054.86</div>
+                        <div class="card-title">Cato Remaining</div>
+                        <div class="card-value" style="color: #4ade80;" id="catoRemaining">£39,054.86</div>
                     </div>
                 </div>
-                <div style="font-size: 0.75em; color: #888; margin-top: 5px;">To be Reconciled</div>
+                <div class="card-subtitle">Starting: £39,054.86</div>
+                <div class="trend trend-down" id="catoTrend">↓ Decreases as reconciled</div>
             </div>
 
-            <div class="card" onclick="openQueriesModal()" style="position: relative;">
+            <!-- Difference (Should trend to £0) -->
+            <div class="card" id="card-diff" onclick="openQueriesModal()" style="cursor: pointer;">
                 <div class="card-header">
                     <div class="card-icon icon-red">⚠️</div>
                     <div>
-                        <div class="card-title">Unreconciled Diff</div>
-                        <div class="card-value" style="color: #f87171;">£13,015.33</div>
+                        <div class="card-title">Difference</div>
+                        <div class="card-value" style="color: #f87171;" id="difference">£13,015.33</div>
                     </div>
                 </div>
-                <div style="position: absolute; top: 10px; right: 10px; font-size: 0.7em; color: #888; background: rgba(239,68,68,0.1); padding: 2px 8px; border-radius: 10px;">Click to view queries</div>
+                <div class="card-subtitle">Target: £0.00</div>
+                <div class="trend trend-down" id="diffTrend">↓ Click to view queries</div>
             </div>
 
-            <div class="card">
+            <!-- Reconciled So Far -->
+            <div class="card" id="card-reconciled">
                 <div class="card-header">
-                    <div class="card-icon icon-orange">📝</div>
+                    <div class="card-icon icon-purple">✓</div>
                     <div>
-                        <div class="card-title">Total Invoices (LCB)</div>
-                        <div class="card-value" style="color: #fb923c;">£335,023.80</div>
+                        <div class="card-title">Reconciled So Far</div>
+                        <div class="card-value" style="color: #c084fc;" id="reconciledAmount">£0.00</div>
                     </div>
                 </div>
+                <div class="card-subtitle">Sum of matched items</div>
+                <div class="trend trend-up" id="reconciledTrend">↑ Increases as you match</div>
             </div>
 
-            <div class="card">
+            <!-- Items Count -->
+            <div class="card" id="card-count">
                 <div class="card-header">
-                    <div class="card-icon icon-purple">💳</div>
+                    <div class="card-icon icon-orange">📋</div>
                     <div>
-                        <div class="card-title">Total Payments</div>
-                        <div class="card-value" style="color: #c084fc;">£300,017.67</div>
+                        <div class="card-title">Items Matched</div>
+                        <div class="card-value" style="color: #fb923c;" id="itemsCount">0 / 94</div>
                     </div>
                 </div>
+                <div class="card-subtitle">Checkboxes ticked</div>
+                <div class="trend trend-neutral" id="countTrend">Progress indicator</div>
             </div>
 
-            <div class="card progress-card">
+            <!-- Progress % -->
+            <div class="card progress-card" id="card-progress">
                 <div class="card-header">
                     <div class="card-icon icon-yellow">📈</div>
                     <div style="flex: 1;">
                         <div class="card-title">Reconciliation Progress</div>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div class="card-value" style="color: #facc15; font-size: 1.2em;" id="progressPercent">0%</div>
-                            <div style="font-size: 0.8em; color: #888;"><span id="matchedCount">0</span> / <span id="totalCount">0</span></div>
                         </div>
                         <div class="progress-bar">
                             <div class="progress-fill" id="progressBar" style="width: 0%"></div>
@@ -768,22 +808,19 @@
                             <th class="header-group-details" colspan="3" style="text-align: center;">Transaction Details</th>
                         </tr>
                         <tr>
-                            <!-- LCB Columns -->
                             <th class="col-lcb-date header-group-lcb">Date</th>
                             <th class="col-lcb-ref header-group-lcb">Reference</th>
                             <th class="col-lcb-amount header-group-lcb">Amount</th>
-                            <!-- Cato Columns -->
                             <th class="col-cato-date header-group-cato">Date</th>
                             <th class="col-cato-ref header-group-cato">Reference</th>
                             <th class="col-cato-amount header-group-cato">Amount</th>
-                            <!-- Detail Columns -->
                             <th class="col-type header-group-details">Type</th>
                             <th class="col-status header-group-details">Status</th>
                             <th class="col-notes header-group-details">Reconciliation Notes</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <!-- BATCH 1 - LCB Payment 12/01/2023 £10,465.72 -->
+                        <!-- BATCH 1 -->
                         <tr class="batch-header" data-amount="10465.72" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="10465.72"></td>
                             <td class="col-lcb-date">12/01/2023</td>
@@ -881,7 +918,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Part of Batch 1"></td>
                         </tr>
 
-                        <!-- BATCH 2 - LCB Payment 21/03/2023 £4,954.86 -->
+                        <!-- BATCH 2 -->
                         <tr class="batch-divider batch-header" data-amount="4954.86" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="4954.86"></td>
                             <td class="col-lcb-date">21/03/2023</td>
@@ -907,7 +944,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Paid in Batch 2"></td>
                         </tr>
 
-                        <!-- BATCH 3 - LCB Payment 05/05/2023 £14,430.42 -->
+                        <!-- BATCH 3 -->
                         <tr class="batch-divider batch-header" data-amount="14430.42" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="14430.42"></td>
                             <td class="col-lcb-date">05/05/2023</td>
@@ -933,7 +970,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Batch 3 payment"></td>
                         </tr>
 
-                        <!-- BATCH 4 - LCB Payment 08/06/2023 £5,875.97 -->
+                        <!-- BATCH 4 -->
                         <tr class="batch-divider batch-header" data-amount="5875.97" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="5875.97"></td>
                             <td class="col-lcb-date">08/06/2023</td>
@@ -959,7 +996,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Paid in Batch 4"></td>
                         </tr>
 
-                        <!-- BATCH 5 WITH CREDIT NOTE - LCB Payment 28/07/2023 £13,781.13 -->
+                        <!-- BATCH 5 WITH CREDIT NOTE -->
                         <tr class="batch-divider batch-header" data-amount="13781.13" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="13781.13"></td>
                             <td class="col-lcb-date">28/07/2023</td>
@@ -1033,7 +1070,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="⚠️ CHECK LCB RECORDS"></td>
                         </tr>
 
-                        <!-- BATCH 6 - LCB Payment 20/10/2023 £10,486.41 -->
+                        <!-- BATCH 6 -->
                         <tr class="batch-divider batch-header" data-amount="10486.41" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="10486.41"></td>
                             <td class="col-lcb-date">20/10/2023</td>
@@ -1059,7 +1096,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Paid in Batch 6"></td>
                         </tr>
 
-                        <!-- BATCH 7 - LCB Payment 09/11/2023 £9,723.60 -->
+                        <!-- BATCH 7 -->
                         <tr class="batch-divider batch-header" data-amount="9723.60" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="9723.60"></td>
                             <td class="col-lcb-date">09/11/2023</td>
@@ -1085,7 +1122,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Paid in Batch 7"></td>
                         </tr>
 
-                        <!-- BATCH 8 - LCB Payment 05/12/2023 £19,447.20 -->
+                        <!-- BATCH 8 -->
                         <tr class="batch-divider batch-header" data-amount="19447.20" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="19447.20"></td>
                             <td class="col-lcb-date">05/12/2023</td>
@@ -1123,7 +1160,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Also paid in Batch 8"></td>
                         </tr>
 
-                        <!-- BATCH 9 - LCB Payment 12/02/2024 £18,053.51 -->
+                        <!-- BATCH 9 -->
                         <tr class="batch-divider batch-header" data-amount="18053.51" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="18053.51"></td>
                             <td class="col-lcb-date">12/02/2024</td>
@@ -1161,7 +1198,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Part of Batch 9"></td>
                         </tr>
 
-                        <!-- BATCH 10 - LCB Payment 21-25/03/2024 £18,017.49 -->
+                        <!-- BATCH 10 -->
                         <tr class="batch-divider batch-header" data-amount="18017.49" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="18017.49"></td>
                             <td class="col-lcb-date">21-25/03/2024</td>
@@ -1199,7 +1236,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Split part 2"></td>
                         </tr>
 
-                        <!-- BATCH 11 - LCB Payment 17/04/2024 £3,731.40 -->
+                        <!-- BATCH 11 -->
                         <tr class="batch-divider batch-header" data-amount="3731.40" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="3731.40"></td>
                             <td class="col-lcb-date">17/04/2024</td>
@@ -1224,7 +1261,8 @@
                             <td class="col-status"><span class="status status-matched">Paid</span></td>
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Admin charges"></td>
                         </tr>
-                        <!-- BATCH 12 - LCB Payment 07/06/2024 £13,291.41 -->
+
+                        <!-- BATCH 12 -->
                         <tr class="batch-divider batch-header" data-amount="13291.41" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="13291.41"></td>
                             <td class="col-lcb-date">07/06/2024</td>
@@ -1262,7 +1300,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Fines"></td>
                         </tr>
 
-                        <!-- BATCH 13 - LCB Payment 14/06/2024 £8,751.60 -->
+                        <!-- BATCH 13 -->
                         <tr class="batch-divider batch-header" data-amount="8751.60" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="8751.60"></td>
                             <td class="col-lcb-date">14/06/2024</td>
@@ -1288,7 +1326,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Paid in Batch 13"></td>
                         </tr>
 
-                        <!-- BATCH 14 - LCB Payment 15/08/2024 £25,042.87 -->
+                        <!-- BATCH 14 -->
                         <tr class="batch-divider batch-header" data-amount="25042.87" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="25042.87"></td>
                             <td class="col-lcb-date">15/08/2024</td>
@@ -1374,7 +1412,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Part of Batch 14"></td>
                         </tr>
 
-                        <!-- BATCH 15 - LCB Payment 02-03/10/2024 £14,719.20 -->
+                        <!-- BATCH 15 -->
                         <tr class="batch-divider batch-header" data-amount="14719.20" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="14719.20"></td>
                             <td class="col-lcb-date">02-03/10/2024</td>
@@ -1412,7 +1450,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Part of Batch 15"></td>
                         </tr>
 
-                        <!-- BATCH 16 - LCB Payment 20/12/2024 £7,741.82 -->
+                        <!-- BATCH 16 -->
                         <tr class="batch-divider batch-header" data-amount="7741.82" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="7741.82"></td>
                             <td class="col-lcb-date">20/12/2024</td>
@@ -1462,7 +1500,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Part of Batch 16"></td>
                         </tr>
 
-                        <!-- BATCH 17 WITH CREDIT - LCB Payment 17/03/2025 £14,725.72 -->
+                        <!-- BATCH 17 WITH CREDIT -->
                         <tr class="batch-divider batch-header" data-amount="14725.72" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="14725.72"></td>
                             <td class="col-lcb-date">17/03/2025</td>
@@ -1524,7 +1562,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Part of Batch 17"></td>
                         </tr>
 
-                        <!-- BATCH 18 - SPLIT PAYMENT - LCB Payment 19/05/2025 £16,066.17 -->
+                        <!-- BATCH 18 SPLIT -->
                         <tr class="batch-divider batch-header" data-amount="16066.17" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="16066.17"></td>
                             <td class="col-lcb-date">19/05/2025</td>
@@ -1586,7 +1624,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Split part 3"></td>
                         </tr>
 
-                        <!-- BATCH 19 - PARTIAL WITH SHORTFALL - LCB Payment 19/07/2025 £17,710.57 -->
+                        <!-- BATCH 19 PARTIAL -->
                         <tr class="batch-divider batch-header" data-amount="17710.57" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="17710.57"></td>
                             <td class="col-lcb-date">19/07/2025</td>
@@ -1636,7 +1674,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Paid in full"></td>
                         </tr>
 
-                        <!-- BATCH 20 - LCB Payment 12/09/2025 £14,347.69 -->
+                        <!-- BATCH 20 -->
                         <tr class="batch-divider batch-header" data-amount="14347.69" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="14347.69"></td>
                             <td class="col-lcb-date">12/09/2025</td>
@@ -1686,7 +1724,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Balance £2,250"></td>
                         </tr>
 
-                        <!-- BATCH 21 WITH CREDIT - LCB Payment 01/12/2025 £17,341.43 -->
+                        <!-- BATCH 21 WITH CREDIT -->
                         <tr class="batch-divider batch-header" data-amount="17341.43" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="17341.43"></td>
                             <td class="col-lcb-date">01/12/2025</td>
@@ -1748,7 +1786,7 @@
                             <td class="col-notes"><input type="text" class="notes-input" placeholder="Part of Batch 21"></td>
                         </tr>
 
-                        <!-- BATCH 22 - LCB Payment 11/02/2026 £12,398.00 -->
+                        <!-- BATCH 22 -->
                         <tr class="batch-divider batch-header" data-amount="12398.00" data-type="payment">
                             <td class="col-match"><input type="checkbox" onchange="updateMatch(this)" data-amount="12398.00"></td>
                             <td class="col-lcb-date">11/02/2026</td>
@@ -1914,7 +1952,7 @@
             </div>
         </div>
 
-        <!-- CORRECTED FINAL SUMMARY -->
+        <!-- FINAL SUMMARY -->
         <div class="section">
             <div class="section-header">
                 <h2 class="section-title">📊 Final Reconciliation Summary</h2>
@@ -2159,70 +2197,102 @@
     <button class="print-btn" onclick="window.print()">🖨️ Print / Save PDF</button>
 
     <script>
+        // CONSTANTS - LCB Baseline (Fixed)
+        const LCB_BALANCE = 26039.53;
+        const CATO_START_BALANCE = 39054.86;
+        const TOTAL_DIFFERENCE = 13015.33;
+        
         // Format currency with 2 decimal places
         function formatCurrency(amount) {
             return '£' + amount.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
 
-        // Calculate totals dynamically from table data
-        function calculateSummaryCards() {
-            let totalInvoices = 0;
-            let totalPayments = 0;
-            let totalCredits = 0;
-            let totalOutstanding = 0;
-            let queryCount = 0;
-
-            document.querySelectorAll('#reconciliationTable tbody tr[data-amount]').forEach(row => {
-                const amount = parseFloat(row.getAttribute('data-amount')) || 0;
-                const type = row.getAttribute('data-type');
-                const status = row.querySelector('.status')?.textContent?.toLowerCase() || '';
-                const isQuery = row.classList.contains('query');
-
-                if (isQuery) queryCount++;
-
-                if (type === 'invoice') {
-                    if (status.includes('unpaid') || status.includes('balance') || status.includes('query')) {
-                        totalOutstanding += amount;
-                    } else {
-                        totalInvoices += amount;
-                    }
-                } else if (type === 'payment') {
-                    totalPayments += amount;
-                } else if (type === 'credit') {
-                    totalCredits += amount;
-                }
-            });
-
-            // Note: LCB balance is fixed at £26,039.53 (baseline)
-            // Cato balance starts at £39,054.86 and decreases as items are reconciled
-        }
-
-        // Calculate reconciliation progress
-        function calculateProgress() {
-            let totalToReconcile = 0;
-            let matchedTotal = 0;
+        // Calculate reconciliation dynamically
+        function calculateReconciliation() {
+            let reconciledAmount = 0;
             let matchedCount = 0;
             let totalCount = 0;
 
+            // Sum up all checked items
             document.querySelectorAll('#reconciliationTable tbody tr[data-amount]').forEach(row => {
                 const amount = parseFloat(row.getAttribute('data-amount')) || 0;
                 const checkbox = row.querySelector('.col-match input[type="checkbox"]');
                 const isChecked = checkbox && checkbox.checked;
-
-                totalToReconcile += amount;
+                
                 totalCount++;
-
+                
                 if (isChecked) {
-                    matchedTotal += amount;
+                    reconciledAmount += amount;
                     matchedCount++;
                 }
             });
 
-            const percent = totalCount > 0 ? Math.round((matchedCount / totalCount) * 100) : 0;
-            document.getElementById('progressPercent').textContent = percent + '%';
-            document.getElementById('progressBar').style.width = percent + '%';
-            document.getElementById('matchedCount').textContent = matchedCount;
-            document.getElementById('totalCount').textContent = totalCount;
+            // Calculate dynamic values
+            const catoRemaining = CATO_START_BALANCE - reconciledAmount;
+            const currentDifference = catoRemaining - LCB_BALANCE;
+            const progressPercent = totalCount > 0 ? Math.round((matchedCount / totalCount) * 100) : 0;
+            
+            // Update DOM with animation
+            updateCard('catoRemaining', formatCurrency(catoRemaining), catoRemaining < CATO_START_BALANCE);
+            updateCard('difference', formatCurrency(currentDifference), currentDifference < TOTAL_DIFFERENCE);
+            updateCard('reconciledAmount', formatCurrency(reconciledAmount), reconciledAmount > 0);
+            updateCard('itemsCount', matchedCount + ' / ' + totalCount, matchedCount > 0);
+            updateCard('progressPercent', progressPercent + '%', progressPercent > 0);
+            
+            // Update progress bar
+            document.getElementById('progressBar').style.width = progressPercent + '%';
+            
+            // Update trend indicators
+            updateTrends(catoRemaining, currentDifference, reconciledAmount);
+        }
+
+        // Update card with animation
+        function updateCard(id, value, hasChanged) {
+            const element = document.getElementById(id);
+            const card = element.closest('.card');
+            
+            element.textContent = value;
+            
+            if (hasChanged) {
+                card.classList.add('updating');
+                setTimeout(() => card.classList.remove('updating'), 500);
+            }
+        }
+
+        // Update trend indicators
+        function updateTrends(catoRemaining, difference, reconciled) {
+            const catoTrend = document.getElementById('catoTrend');
+            const diffTrend = document.getElementById('diffTrend');
+            const reconciledTrend = document.getElementById('reconciledTrend');
+            
+            // Cato trend (should decrease)
+            if (catoRemaining < CATO_START_BALANCE) {
+                const reduction = CATO_START_BALANCE - catoRemaining;
+                catoTrend.innerHTML = `↓ Reduced by ${formatCurrency(reduction)}`;
+                catoTrend.className = 'trend trend-down';
+            } else {
+                catoTrend.innerHTML = '↓ Waiting to reconcile';
+                catoTrend.className = 'trend trend-neutral';
+            }
+            
+            // Difference trend (should decrease toward 0)
+            if (difference < TOTAL_DIFFERENCE) {
+                const improvement = TOTAL_DIFFERENCE - difference;
+                diffTrend.innerHTML = `↓ Improved by ${formatCurrency(improvement)}`;
+                diffTrend.className = 'trend trend-down';
+            } else {
+                diffTrend.innerHTML = '↓ Click to view queries';
+                diffTrend.className = 'trend trend-neutral';
+            }
+            
+            // Reconciled trend (should increase)
+            if (reconciled > 0) {
+                reconciledTrend.innerHTML = `↑ ${formatCurrency(reconciled)} matched`;
+                reconciledTrend.className = 'trend trend-up';
+            } else {
+                reconciledTrend.innerHTML = '↑ Start matching items';
+                reconciledTrend.className = 'trend trend-neutral';
+            }
         }
 
         function updateMatch(checkbox) {
@@ -2234,7 +2304,7 @@
                 row.classList.remove('matched');
                 row.style.backgroundColor = '';
             }
-            calculateProgress();
+            calculateReconciliation();
             autoSave();
         }
 
@@ -2342,7 +2412,9 @@
                 const saved = localStorage.getItem('recon_match_' + index);
                 if (saved === 'true') {
                     cb.checked = true;
-                    updateMatch(cb);
+                    const row = cb.closest('tr');
+                    row.classList.add('matched');
+                    row.style.backgroundColor = 'rgba(34, 197, 94, 0.1)';
                 }
             });
 
@@ -2351,7 +2423,8 @@
                 if (saved) input.value = saved;
             });
 
-            calculateProgress();
+            // Calculate initial state
+            calculateReconciliation();
         }
 
         // Modal functions
@@ -2388,7 +2461,6 @@
 
         // Initialize on page load
         window.addEventListener('load', function() {
-            calculateSummaryCards();
             loadProgress();
         });
     </script>
